@@ -1,0 +1,33 @@
+﻿# Python / build
+__pycache__/
+*.py[cod]
+*.log
+*.coverage
+.coverage*
+htmlcov/
+
+# Virtual environments
+.venv/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project artifacts
+artifacts/
+data/jira_samples.json
+vector_store/
+__pycache__/
+
+# Local data/uploads
+*.sqlite3
+*.db
+
+# Streamlit cache
+.streamlit/
+
+# Misc
+*.bak

@@ -1,0 +1,132 @@
+Metadata-Version: 2.4
+Name: demolanggraph
+Version: 0.1.0
+Summary: A reference RAG system built with LangGraph.
+Author: Hackathon Team
+Requires-Python: <3.13,>=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: langchain<0.3,>=0.2.11
+Requires-Dist: langchain-community<0.3,>=0.2.11
+Requires-Dist: langchain-openai<0.2,>=0.1.7
+Requires-Dist: langgraph<0.2,>=0.1.13
+Requires-Dist: chromadb>=0.5.0
+Requires-Dist: langchain-chroma<1.0,>=0.1.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: typer>=0.12.3
+Requires-Dist: tiktoken>=0.7.0
+Requires-Dist: langchain-text-splitters>=0.2.2
+Requires-Dist: sentence-transformers>=3.0.1
+Requires-Dist: requests>=2.31.0
+Requires-Dist: streamlit>=1.36.0
+
+# DemoLangGraph
+
+DemoLangGraph is a minimal Retrieval-Augmented Generation (RAG) reference project that highlights how to wire an ingest -> retrieve -> generate pipeline with [LangGraph](https://python.langchain.com/docs/langgraph). It lets you bring any `.txt`/`.md` knowledge base, pick an embedding/LLM provider, and chat over the indexed content through a single CLI.
+
+## Highlights
+- Turn raw text files into a Chroma vector store via `demo-rag ingest`.
+- LangGraph workflow with two explicit nodes: `retrieve` -> `generate`.
+- Switch between Azure OpenAI embeddings and local BGE-M3 via env vars.
+- Typer-powered CLI with `ingest` and `chat` commands.
+
+## Setup
+```bash
+cd DemoLangGraph
+pip install -e .
+cp .env.example .env  # fill in your keys/models
+```
+
+- Yêu cầu Python 3.10–3.12 (NumPy/Chroma chưa phát hành wheel cho 3.13, nên tránh dùng 3.13 để không phải tự build).
+- Place documents under `data/source_docs`. You can change this location using `--data-dir` on the ingest command.
+- Cần khai báo đầy đủ các biến `AZURE_OPENAI_*` cho cả LLM và embeddings trước khi chạy `demo-rag ingest/chat`.
+
+## Usage
+### 1. Ingest documents
+```bash
+demo-rag ingest
+# Optional:
+# demo-rag ingest --data-dir ./my_docs --vector-store-dir ./custom_store
+```
+This splits files according to `CHUNK_SIZE/CHUNK_OVERLAP`, creates embeddings, and stores a Chroma index in `artifacts/vectorstore/chroma_index` by default.
+
+### 2. Chat with the RAG assistant
+```bash
+demo-rag chat
+```
+- `-q/--question` asks a single question in non-interactive mode.
+- `--vector-store-dir` points the assistant at an alternate Chroma path.
+- Toggle `--show-sources/--no-show-sources` to control whether retrieved sources are printed.
+- Each source line hiển thị thêm `distance` (Chroma trả về khoảng cách, càng nhỏ càng liên quan). Dùng `RETRIEVER_SCORE_THRESHOLD` để bỏ các đoạn có distance vượt ngưỡng bạn đặt ra.
+
+The LangGraph pipeline executes:
+1. `retrieve`: call Chroma, lấy distance cho từng chunk, lọc theo `RETRIEVER_SCORE_THRESHOLD` (nếu khai báo) rồi nối context.
+2. `generate`: feed `{question, context}` to the configured chat model and return the answer with the retrieved documents.
+
+### 3. Sync Jira tickets (optional)
+1. Cấu hình môi trường:
+   ```bash
+   export JIRA_URL="https://your-domain.atlassian.net"
+   export JIRA_EMAIL="you@email.com"
+   export JIRA_API_TOKEN="..."
+   export JIRA_DEFAULT_JQL="project = DEV ORDER BY updated DESC"
+   ```
+2. Chạy lệnh:
+   ```bash
+   demo-rag sync-jira --limit 50
+   demo-rag sync-jira --jql "project = DEV AND statusCategory != Done" --limit 25
+   ```
+Lệnh sẽ gọi Jira REST API, chuẩn hóa ticket và lưu ở `data/jira_samples.json`. Graph nâng cao (`demo-rag chat --graph advanced`) sẽ đọc file này ở nhánh `JIRA`. Nếu dataset chưa có ticket cần hỏi, bạn chỉ cần chạy `demo-rag sync-jira` với JQL phù hợp để cập nhật trước khi chat.
+
+## Configuration Cheatsheet
+| Variable | Description | Default |
+| --- | --- | --- |
+| `LLM_PROVIDER` | `azure_openai` or `openai` | `azure_openai` |
+| `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` | Required khi `LLM_PROVIDER=openai` (proxy PrivateGPT, v.v.) | unset |
+| `EMBEDDINGS_PROVIDER` | `azure_openai`, `openai`, hoặc `bge` | `azure_openai` |
+| `OPENAI_EMBEDDING_MODEL` / `OPENAI_EMBEDDING_API_KEY` | Bắt buộc khi `EMBEDDINGS_PROVIDER=openai` | unset |
+| `EMBEDDINGS_MODEL` | Embedding model id | `text-embedding-3-small` |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | Text splitter params | `800` / `200` |
+| `RETRIEVER_K` | Number of passages returned | `4` |
+| `RETRIEVER_SCORE_THRESHOLD` | Maximum Chroma distance allowed (smaller distance = tốt hơn) | unset |
+| `JIRA_URL` / `JIRA_EMAIL` / `JIRA_API_TOKEN` / `JIRA_BEARER_TOKEN` | Jira auth info for `demo-rag sync-jira` | unset |
+| `JIRA_API_PATH` | One or more REST paths (comma separated) to try (e.g., `/rest/api/2,/rest/api/3`) | `/rest/api/2` |
+| `JIRA_SEARCH_ENDPOINT` | Endpoint appended to each API path (`/search` or `/search/jql`) | `/search` |
+| `JIRA_SEARCH_METHOD` | HTTP method for Jira search (`GET` or `POST`) | `GET` |
+| `JIRA_DEFAULT_JQL` | Default JQL when `--jql` is omitted | `ORDER BY updated DESC` |
+| `JIRA_DATASET_PATH` | Location of synced Jira JSON | `data/jira_samples.json` |
+
+**LLM (Azure OpenAI)**
+- Cung cấp `AZURE_OPENAI_LLM_ENDPOINT`, `AZURE_OPENAI_LLM_API_VERSION`, `AZURE_OPENAI_LLM_DEPLOYMENT` (tên deployment do bạn cấu hình), và `AZURE_OPENAI_LLM_API_KEY`.
+- Có thể tái sử dụng cùng endpoint/api version với embeddings hoặc tách riêng tùy nhu cầu.
+- Muốn dùng proxy OpenAI-compatible (ví dụ privateGPT-API) mà không đổi code, đặt `LLM_PROVIDER=openai` và khai báo `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`. Endpoint chỉ cần tuân chuẩn OpenAI `/v1/chat/completions`.
+
+**Azure OpenAI embeddings**
+- Set `EMBEDDINGS_PROVIDER=azure_openai`.
+- Provide `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, and `AZURE_OPENAI_EMBEDDING_API_KEY` (separate key from LLM if needed).
+- `EMBEDDINGS_MODEL` should match the model version behind your deployment (e.g., `text-embedding-3-small`).
+
+**BGE-M3 embeddings**
+- Sử dụng SentenceTransformer (`pip install demolanggraph` đã kéo sẵn dependency); cần GPU/CPU đủ mạnh.
+- Set `EMBEDDINGS_PROVIDER=bge` và `EMBEDDINGS_MODEL=BAAI/bge-m3`.
+- Re-run `demo-rag ingest` after switching providers so the Chroma index is rebuilt with the new embeddings.
+- Nếu muốn tái sử dụng proxy OpenAI-compatible cho embeddings, đặt `EMBEDDINGS_PROVIDER=openai` cùng `OPENAI_BASE_URL`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_EMBEDDING_API_KEY` (có thể trùng với `OPENAI_API_KEY` nếu proxy không yêu cầu riêng).
+
+## Code Map
+```
+src/demolanggraph/
+  settings.py    # load env vars + resolve project paths
+  jira_sync.py   # Jira REST sync -> dataset JSON
+  embeddings.py  # provider-agnostic embedding factory
+  llm.py         # provider-agnostic chat model factory
+  ingest.py      # load/split docs and write Chroma artifacts
+  vectorstore.py # persist/load Chroma + expose retriever
+  graph.py       # LangGraph definition of the RAG workflow
+  cli.py         # Typer CLI (ingest + chat)
+```
+
+## Quick Demo
+1. Keep the included `data/source_docs/sample.md` or drop in your own notes.
+2. Run `demo-rag ingest`.
+3. Run `demo-rag chat -q "What is this project about?"`.
+
+You should receive an answer grounded in the ingested sample plus a list of cited source files.

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "demolanggraph"
+version = "0.1.0"
+description = "A reference RAG system built with LangGraph."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+authors = [{name = "Hackathon Team"}]
+dependencies = [
+    "langchain>=0.2.11,<0.3",
+    "langchain-community>=0.2.11,<0.3",
+    "langchain-openai>=0.1.7,<0.2",
+    "langgraph>=0.1.13,<0.2",
+    "chromadb>=0.5.0",
+    "langchain-chroma>=0.1.0,<1.0",
+    "python-dotenv>=1.0.1",
+    "typer>=0.12.3",
+    "tiktoken>=0.7.0",
+    "langchain-text-splitters>=0.2.2",
+    "sentence-transformers>=3.0.1",
+    "requests>=2.31.0",
+    "streamlit>=1.36.0",
+]
+
+[project.scripts]
+demo-rag = "demolanggraph.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

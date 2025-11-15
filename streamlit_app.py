@@ -7,7 +7,6 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 import sys
-import os
 
 import streamlit as st
 from langchain_core.documents import Document
@@ -139,24 +138,6 @@ def _render_history(history: List[Tuple[str, str]]) -> None:
             st.markdown(message)
 
 
-# --------------------------------------------------------------------------- AUTO-INGEST
-def auto_ingest_if_needed(cfg: Settings):
-    """Tự động ingest nếu vectorstore chưa tồn tại."""
-    vector_dir = cfg.vector_store_dir
-
-    # Nếu thư mục rỗng → chưa có vectorstore
-    has_vectorstore = any(vector_dir.glob("**/*"))
-
-    if not has_vectorstore:
-        st.warning("⚠️ Vector store chưa được tạo — tiến hành ingest lần đầu...")
-        with st.spinner("Đang ingest dữ liệu..."):
-            msg = ingest_module.ingest(cfg)
-        st.success(f"✅ Tạo vector store xong: {msg}")
-
-        _build_graph.clear()
-        st.experimental_rerun()
-
-
 # --------------------------------------------------------------------------- tabs
 def render_chat_tab(graph, cfg: Settings, inspect: bool) -> None:
     history = st.session_state.setdefault("chat_history", [])
@@ -237,7 +218,6 @@ def main() -> None:
     st.title("DemoLangGraph · Streamlit UI")
 
     defaults = _default_settings()
-
     with st.sidebar:
         st.subheader("Cấu hình")
         data_dir = st.text_input("Data directory", value=str(defaults.data_dir))
@@ -248,11 +228,7 @@ def main() -> None:
             _build_graph.clear()
         st.caption("Các biến khác (LLM, embeddings, Jira, ...) lấy từ `.env` giống CLI `demo-rag`.")
 
-    # Build graph lần đầu
     graph, cfg = _build_graph(graph_choice, data_dir, vector_dir)
-
-    # ⛔ THÊM DÒNG NÀY: auto-ingest nếu vectorstore chưa có
-    auto_ingest_if_needed(cfg)
 
     chat_tab, ingest_tab, jira_tab = st.tabs(["Chat", "Ingest", "Jira Sync"])
     with chat_tab:

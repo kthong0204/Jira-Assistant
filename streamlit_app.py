@@ -227,6 +227,12 @@ def main() -> None:
         if st.button("Reload graph"):
             _build_graph.clear()
         st.caption("Các biến khác (LLM, embeddings, Jira, ...) lấy từ `.env` giống CLI `demo-rag`.")
+    
+    index_path = Path(vector_dir) / "chroma_index"
+    if not index_path.exists():
+        with st.spinner("Chưa có vectorstore, đang chạy ingest..."):
+            # gọi trực tiếp hàm ingest thay vì subprocess
+            ingest_module.ingest(_load_settings(data_dir, vector_dir))
 
     graph, cfg = _build_graph(graph_choice, data_dir, vector_dir)
 
